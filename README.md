@@ -2,6 +2,43 @@
 
 This repository contains an ASP.NET Web Forms CMF portal demo that runs locally with IIS Express. The portal provides platform-scoped CMF dashboards, Issue List and CMF Pending views, AI-assisted summaries/recommendations, Reports & Analytics, and CMF rule configuration.
 
+## What's New in `updated_recommendation`
+
+1. **Modular JSON Configuration & Plugin Architecture (`App_Data/cmf-assistant-config.json` & `App_Code/CmfAssistantConfigService.cs`):**
+   - Centralizes GNAI endpoints (`/providers/anthropic/v1/messages` for `claude-4-5-sonnet` / `claude-4-5-haiku` and `/providers/openai/v1/chat/completions` for `gpt-5-mini`), HSDES REST API settings, SQL database connection settings, 6-category scoring rules, disposition bands, gating guardrails, and platform/component jargon mappings in a single hot-reloading JSON file.
+   - Supports `App_Data/cmf-assistant-config.local.json` (git-ignored) for local developer API keys and database credentials.
+
+2. **6-Category / 4-Point Scoring Mechanism & 5 Gating Guardrails (`App_Code/CmfRecommendationService.cs`):**
+   - **4-Point Scale (`1` to `4`):** `Overall Score = (S * 0.20) + (O * 0.15) + (D * 0.15) + (R * 0.10) + (B * 0.20) + (CX * 0.20)`.
+   - **5-Tag Disposition Model:**
+     - `CMF_OK` (`Approve`): Weighted score `>= 3.50/4` with minimum conditions `B >= 3` and `D >= 3`.
+     - `CMF_REVIEW` (`Review`): Weighted score `2.75 - 3.49/4` or capped/escalated by a gating guardrail.
+     - `CMF_REJECT` (`Reject`): Weighted score `< 2.75/4` with complete evidence and no mandatory escalation.
+     - `CMF_INCOMPLETE` (`Incomplete`): Condition-based override when core metric evidence is missing (Guardrail #3).
+     - `CMF_DUPLICATE` (`Duplicate`): Condition-based override when a duplicate sighting or merge ID is identified.
+   - **5 Gating Guardrails:**
+     - *Low business or narrow trigger cap:* If `B <= 2` or `D <= 2`, capped at `CMF_REVIEW`.
+     - *Mandatory escalation:* Safety, security/privacy, data loss/corruption, permanent HW damage, or certification/WHQL blocker is at least `CMF_REVIEW`.
+     - *Incomplete evidence:* Missing core category evidence returns `CMF_INCOMPLETE`.
+     - *High normal-flow UX exception:* Persistent normal-flow issue with `B = 4`, `CX = 4`, and `D = 4` qualifies as `CMF_OK` when weighted score `>= 3.50` even if `Severity = 3`.
+     - *Occurrence discipline:* Uses actual fail/attempt cycles and unit/configuration counts without inflating `Occurrence` for symptom severity.
+
+3. **One-Click Excel (`.xlsx`) Scoring Guidelines Importer (`Config/CMF Rules` Tab):**
+   - Upload an updated `CMF_6_Category_Scoring_Mechanism.xlsx` file in the Admin **Config/CMF Rules** tab to automatically parse Sheet 1 (`1-4` rubrics and weights) and Sheet 2 (CMF Disposition Table and Gating Guardrails) via `EPPlus.dll` and update `App_Data/cmf-assistant-config.json`.
+
+4. **AI CMF Assistant Drawer & Scenario Feedback Learning (`CMF Pending` Tab):**
+   - **Problem Description (`App_Code/AiSummaryService.cs`):** Enforces `[Component]` in the opening sentence, reconciles conflicting cycle/UUT counts, and restricts `**Repro details:**` strictly to reproduction details (`RVP repro: Yes/No;` + customer/lab reproduction status and builds) without debug/root-cause leakage.
+   - **Dedicated `Current Status` Section:** Summarizes candidate fixes, workarounds, and validation status (with promoted issue ID attribution).
+   - **Promoted ID Header Link & Click-Only Score Guide Tooltip:** Displays `Promoted ID: <ID/NA>` next to `Sighting ID` and shows the `Score to Tag Guide (Out of 4)` tooltip when clicking the `i` icon.
+   - **Mandatory `RVP repro` Reasoning:** Explicitly evaluates and cites `RVP repro` status (`Yes` = platform-wide risk across OEM customer units; `No` = isolated to customer unit without penalizing the 6-category score).
+   - **Scenario-Based Feedback Log (`App_Code/CmfFeedbackMemoryService.cs` & `App_Data/cmf-feedback-memory.json`):** Appends every reviewer feedback submission as a reusable scenario lesson (`SCN-...`) for future recommendations.
+
+5. **Global `Ask CMF Pulse` Assistant & Native Executive PowerPoint (`.pptx`) Generator (`App_Code/CmfGlobalAssistantService.cs` & `App_Code/CmfExecutivePptxService.cs`):**
+   - Accessible across all portal tabs via the bottom-right **`Ask CMF Pulse`** button (`Analyze. Generate. Assist.`).
+   - **Multi-Tab Q&A & Family/SKU Rollups:** Answers questions across Dashboard KPIs, Issue List sightings, CMF Summary TPT/Designs/SW Image Freeze/OEMs/Drivers, CMF Pending items/age buckets, Reports workweeks/closed reasons, and Config rules. Reports both **Family Totals (`NVL (Nova Lake)`)** and **individual SKU breakdowns (`NVL-H`, `NVL-S`, `NVL-Hx` vs `PTL`)**.
+   - **3-Layer Hybrid Jargon Scaling:** Combines dynamic SQL discovery + fuzzy Levenshtein matching, LLM semantic mapping, and self-learning synonym persistence via chat, feedback notes, or the Admin UI.
+   - **Custom PPT Report Templates & Native 16:9 `.pptx` Generation:** Supports preset and uploaded/saved custom slide blueprints (`App_Data/reports-assistant/pulse-templates.json`) + natural prompts to generate 4-slide widescreen PowerPoint decks using `DocumentFormat.OpenXml` and inline ECharts visuals, plus a dedicated Pulse scenario feedback log (`App_Data/cmf-pulse-feedback.json`).
+
 ## Prerequisites
 
 Install or confirm the following on your Windows machine:
